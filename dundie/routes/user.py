@@ -20,6 +20,7 @@ async def get_user_by_username(*, session: Session = ActiveSession, username: st
 
   query = select(User).where(User.username == username)
   user = session.exec(query).first()
+  print(user)
 
   return user
 
