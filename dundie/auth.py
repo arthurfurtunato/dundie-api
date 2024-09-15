@@ -1,6 +1,6 @@
 from datetime import timedelta, datetime
 from typing import Optional, Callable, Union
-from fastapi import HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status
 from jose import JWTError, jwt
 from pydantic import BaseModel
 from dundie.config import settings
@@ -73,9 +73,20 @@ def get_user(username: str) -> Optional[User]:
   with Session(engine) as session:
     return session.exec(query).first()
   
-def get_current_user(token: str):
+def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    request: Request = None,
+    fresh = False
+  ) -> User:
   """Get the current user from a token"""
   creadential_exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials", headers={"WWW-Authenticate": "Bearer"})
+
+  if request:
+    if authorization := request.headers.get("Authorization"):
+      try:
+        token = authorization.split(" ")[1]
+      except IndexError:
+        raise creadential_exception
 
   try:
     payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -90,8 +101,11 @@ def get_current_user(token: str):
   if user is None:
     raise creadential_exception
   
+  if fresh and (not payload["fresh"] and not user.superuser):
+    raise creadential_exception
+  
   return user
 
-def validate_token(token: str):
+async def validate_token(token: str = Depends(oauth2_scheme)) -> User:
   user = get_current_user(token=token)
   return user
